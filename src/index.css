@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Primary colors */
+    --color-primary-50: 239 246 255;
+    --color-primary-100: 219 234 254;
+    --color-primary-200: 191 219 254;
+    --color-primary-300: 147 197 253;
+    --color-primary-400: 96 165 250;
+    --color-primary-500: 59 130 246;
+    --color-primary-600: 37 99 235;
+    --color-primary-700: 29 78 216;
+    --color-primary-800: 30 64 175;
+    --color-primary-900: 30 58 138;
+    --color-primary-950: 23 37 84;
+
+    /* Secondary colors */
+    --color-secondary-50: 245 243 255;
+    --color-secondary-100: 237 233 254;
+    --color-secondary-200: 221 214 254;
+    --color-secondary-300: 196 181 253;
+    --color-secondary-400: 167 139 250;
+    --color-secondary-500: 139 92 246;
+    --color-secondary-600: 124 58 237;
+    --color-secondary-700: 109 40 217;
+    --color-secondary-800: 91 33 182;
+    --color-secondary-900: 76 29 149;
+    --color-secondary-950: 46 16 101;
+
+    /* Accent colors */
+    --color-accent-50: 240 253 250;
+    --color-accent-100: 204 251 241;
+    --color-accent-200: 153 246 228;
+    --color-accent-300: 94 234 212;
+    --color-accent-400: 45 212 191;
+    --color-accent-500: 20 184 166;
+    --color-accent-600: 13 148 136;
+    --color-accent-700: 15 118 110;
+    --color-accent-800: 17 94 89;
+    --color-accent-900: 19 78 74;
+    --color-accent-950: 4 47 46;
+
+    /* Success colors */
+    --color-success-50: 240 253 244;
+    --color-success-100: 220 252 231;
+    --color-success-200: 187 247 208;
+    --color-success-300: 134 239 172;
+    --color-success-400: 74 222 128;
+    --color-success-500: 34 197 94;
+    --color-success-600: 22 163 74;
+    --color-success-700: 21 128 61;
+    --color-success-800: 22 101 52;
+    --color-success-900: 20 83 45;
+    --color-success-950: 5 46 22;
+
+    /* Warning colors */
+    --color-warning-50: 254 252 232;
+    --color-warning-100: 254 249 195;
+    --color-warning-200: 254 240 138;
+    --color-warning-300: 253 224 71;
+    --color-warning-400: 250 204 21;
+    --color-warning-500: 234 179 8;
+    --color-warning-600: 202 138 4;
+    --color-warning-700: 161 98 7;
+    --color-warning-800: 133 77 14;
+    --color-warning-900: 113 63 18;
+    --color-warning-950: 66 32 6;
+
+    /* Error colors */
+    --color-error-50: 254 242 242;
+    --color-error-100: 254 226 226;
+    --color-error-200: 254 202 202;
+    --color-error-300: 252 165 165;
+    --color-error-400: 248 113 113;
+    --color-error-500: 239 68 68;
+    --color-error-600: 220 38 38;
+    --color-error-700: 185 28 28;
+    --color-error-800: 153 27 27;
+    --color-error-900: 127 29 29;
+    --color-error-950: 69 10 10;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    animation: animateIn 0.3s ease-in-out;
+  }
+  
+  .animate-out {
+    animation: animateOut 0.3s ease-in-out;
+  }
+  
+  @keyframes animateIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes animateOut {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+  }
+}
