@@ -257,17 +257,13 @@ const AgentDetail: React.FC = () => {
       // Show success notification
       setNotification({
         type: 'success',
-        message: 'Agent updated successfully! Redirecting to the new agent...'
+        message: 'Agent updated successfully!'
       });
       
-      // Navigate to the new agent page after a brief delay
+      // Refresh the agent data but stay on the same page
       setTimeout(() => {
-        // Navigate to the new agent ID page
-        navigate(`/agents/${updatedAgent.id}`);
-        
-        // Full page reload to ensure we load fresh data
-        window.location.reload();
-      }, 1500); // Delay so the user sees the success message
+        loadAgent();
+      }, 1000); // Short delay before refreshing data
     } catch (err: any) {
       console.error('Error updating agent:', err);
       
@@ -797,78 +793,79 @@ const AgentDetail: React.FC = () => {
             <Card>
               <CardHeader>
                 <h2 className="text-xl font-semibold text-gray-900">Performance Metrics</h2>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {agent.metrics.performance !== undefined && (
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-500">Performance</span>
-                        <span className="text-sm font-medium text-gray-900">{agent.metrics.performance}%</span>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {agent.metrics.performance !== undefined && (
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium text-gray-500">Performance</span>
+                          <span className="text-sm font-medium text-gray-900">{agent.metrics.performance}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-primary-600 h-2 rounded-full" 
+                            style={{ width: `${agent.metrics.performance}%` }}
+                          ></div>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-primary-600 h-2 rounded-full" 
-                          style={{ width: `${agent.metrics.performance}%` }}
-                        ></div>
+                    )}
+                    
+                    {agent.metrics.reliability !== undefined && (
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium text-gray-500">Reliability</span>
+                          <span className="text-sm font-medium text-gray-900">{agent.metrics.reliability}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-green-500 h-2 rounded-full" 
+                            style={{ width: `${agent.metrics.reliability}%` }}
+                          ></div>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  
-                  {agent.metrics.reliability !== undefined && (
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-500">Reliability</span>
-                        <span className="text-sm font-medium text-gray-900">{agent.metrics.reliability}%</span>
+                    )}
+                    
+                    {agent.metrics.latency !== undefined && (
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm font-medium text-gray-500">Latency</span>
+                          <span className="text-sm font-medium text-gray-900">{agent.metrics.latency} ms</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-amber-500 h-2 rounded-full" 
+                            style={{ width: `${Math.min(100, (agent.metrics.latency / 10))}%` }}
+                          ></div>
+                        </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-green-500 h-2 rounded-full" 
-                          style={{ width: `${agent.metrics.reliability}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {agent.metrics.latency !== undefined && (
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium text-gray-500">Latency</span>
-                        <span className="text-sm font-medium text-gray-900">{agent.metrics.latency} ms</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-amber-500 h-2 rounded-full" 
-                          style={{ width: `${Math.min(100, (agent.metrics.latency / 10))}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {agent.demoUrl && (
-            <Card>
-              <CardHeader>
-                <h2 className="text-xl font-semibold text-gray-900">Resources</h2>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <a 
-                    href={agent.demoUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="flex items-center text-gray-700 hover:text-primary-600"
-                  >
-                    <Globe className="h-5 w-5 mr-2" />
-                    <span>Live Demo</span>
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {agent.demoUrl && (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-xl font-semibold text-gray-900">Resources</h2>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <a 
+                      href={agent.demoUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="flex items-center text-gray-700 hover:text-primary-600"
+                    >
+                      <Globe className="h-5 w-5 mr-2" />
+                      <span>Live Demo</span>
+                    </a>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
     </div>

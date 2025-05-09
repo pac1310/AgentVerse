@@ -603,12 +603,46 @@ export async function updateAgent(id: string, agentData: AgentWithDocs, logoFile
     console.log(`Attempting to update agent with ID: ${id}`);
     console.log('Update data:', agentData);
     
-    // Create a new agent with a reference to the old one
-    const newSupabaseData = {
+    let logoUrl = agentData.logo;
+
+    // Upload new logo if provided
+    if (logoFile) {
+      try {
+        const fileExt = logoFile.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+        
+        // Upload the file
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('agent-logos')
+          .upload(fileName, logoFile, {
+            cacheControl: '3600',
+            upsert: true,
+            contentType: logoFile.type
+          });
+        
+        if (uploadError) {
+          console.error('Logo upload failed:', uploadError);
+          throw uploadError;
+        }
+        
+        // Get the public URL
+        const { data: publicUrlData } = supabase.storage
+          .from('agent-logos')
+          .getPublicUrl(fileName);
+        
+        logoUrl = publicUrlData.publicUrl;
+      } catch (uploadErr) {
+        console.error('Error during logo upload:', uploadErr);
+        // Continue with update even if logo upload fails
+      }
+    }
+
+    // Transform agent data to match Supabase schema
+    const supabaseData = {
       name: agentData.name,
       description: agentData.description,
       detailed_description: agentData.detailedDescription,
-      logo_url: agentData.logo,
+      logo_url: logoUrl,
       capabilities: agentData.capabilities || [],
       input_format: agentData.inputFormat || '',
       output_format: agentData.outputFormat || '',
@@ -623,56 +657,135 @@ export async function updateAgent(id: string, agentData: AgentWithDocs, logoFile
       demo_url: agentData.demoUrl || '',
       api_endpoint: agentData.apiEndpoint || '',
       example_request: agentData.exampleRequest || '',
-      example_response: agentData.exampleResponse || '',
-      previous_id: id // Reference to the old agent ID
+      example_response: agentData.exampleResponse || ''
     };
 
-    console.log('DIRECT INSERT: Creating new agent record with reference to previous ID');
-    
-    // DIRECT MODE: Insert a new record instead of updating
-    const { data: newAgent, error: insertError } = await supabase
+    // First check if the agent exists
+    console.log('Checking if agent exists...');
+    const { data: existingAgent, error: checkError } = await supabase
       .from('agents')
-      .insert(newSupabaseData)
-      .select()
-      .single();
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
       
-    if (insertError) {
-      console.error('Error creating new agent record:', insertError);
-      throw new Error(`Could not create a new agent record: ${insertError.message}`);
+    if (checkError) {
+      console.error('Error checking if agent exists:', checkError);
+      throw new Error(`Error checking if agent exists: ${checkError.message}`);
+    }
+
+    if (!existingAgent) {
+      console.error(`No agent found with ID ${id}`);
+      throw new Error(`No agent found with ID ${id}`);
+    }
+
+    console.log('Agent exists, updating...');
+    
+    // Directly execute an UPDATE without expecting returned data
+    const { error: updateError } = await supabase
+      .from('agents')
+      .update(supabaseData)
+      .eq('id', id);
+      
+    if (updateError) {
+      console.error('Error updating agent:', updateError);
+      throw updateError;
     }
     
-    console.log('Successfully created new agent record:', newAgent);
+    console.log('Update successful, fetching updated agent...');
     
-    // Return the newly created agent
+    // Now fetch the agent separately
+    const { data: updatedAgentData, error: fetchError } = await supabase
+      .from('agents')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+      
+    if (fetchError || !updatedAgentData) {
+      console.error('Error fetching updated agent:', fetchError);
+      
+      // If we can't fetch the updated data, construct a response based on the input data
+      // This ensures the UI gets updated even if there's an RLS issue
+      return {
+        id: id,
+        name: agentData.name || '',
+        description: agentData.description || '',
+        detailedDescription: agentData.detailedDescription || '',
+        logo: logoUrl || 'brain',
+        capabilities: agentData.capabilities || [],
+        inputFormat: agentData.inputFormat || '',
+        outputFormat: agentData.outputFormat || '',
+        version: agentData.version || '1.0.0',
+        creator: agentData.creator || 'Unknown',
+        createdAt: agentData.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        tags: agentData.tags || [],
+        metrics: {
+          performance: agentData.metrics?.performance || 0,
+          reliability: agentData.metrics?.reliability || 0,
+          latency: agentData.metrics?.latency || 0,
+        },
+        dependencies: agentData.dependencies || [],
+        usage: {
+          count: 0,
+          lastUsed: new Date().toISOString(),
+        },
+        documentationUrl: agentData.documentationUrl,
+        demoUrl: agentData.demoUrl,
+        apiEndpoint: agentData.apiEndpoint,
+        exampleRequest: agentData.exampleRequest,
+        exampleResponse: agentData.exampleResponse,
+      };
+    }
+    
+    console.log('Successfully fetched updated agent');
+    
+    // Log the agent update activity
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        trackAgentActivity.updated(
+          userData.user.id, 
+          userData.user.email || 'Unknown User', 
+          updatedAgentData.id, 
+          updatedAgentData.name
+        );
+      }
+    } catch (err) {
+      console.error('Error logging activity:', err);
+    }
+
+    // Return the updated agent
     return {
-      id: newAgent.id,
-      name: newAgent.name,
-      description: newAgent.description,
-      detailedDescription: newAgent.detailed_description || '',
-      logo: newAgent.logo_url || 'brain',
-      capabilities: newAgent.capabilities || [],
-      inputFormat: newAgent.input_format || '',
-      outputFormat: newAgent.output_format || '',
-      version: newAgent.version,
-      creator: newAgent.creator_id || 'Unknown',
-      createdAt: newAgent.created_at,
-      updatedAt: newAgent.updated_at,
-      tags: newAgent.categories || [],
+      id: updatedAgentData.id,
+      name: updatedAgentData.name,
+      description: updatedAgentData.description,
+      detailedDescription: updatedAgentData.detailed_description || '',
+      logo: updatedAgentData.logo_url && updatedAgentData.logo_url.startsWith('http')
+        ? updatedAgentData.logo_url
+        : (updatedAgentData.logo_url || 'brain'),
+      capabilities: updatedAgentData.capabilities || [],
+      inputFormat: updatedAgentData.input_format || '',
+      outputFormat: updatedAgentData.output_format || '',
+      version: updatedAgentData.version,
+      creator: updatedAgentData.creator_id || 'Unknown',
+      createdAt: updatedAgentData.created_at,
+      updatedAt: updatedAgentData.updated_at,
+      tags: updatedAgentData.categories || [],
       metrics: {
-        performance: newAgent.performance_score || 0,
-        reliability: newAgent.reliability_score || 0,
-        latency: newAgent.latency || 0,
+        performance: updatedAgentData.performance_score,
+        reliability: updatedAgentData.reliability_score,
+        latency: updatedAgentData.latency,
       },
-      dependencies: newAgent.dependencies || [],
+      dependencies: updatedAgentData.dependencies || [],
       usage: {
         count: 0,
         lastUsed: new Date().toISOString(),
       },
-      documentationUrl: newAgent.documentation_url,
-      demoUrl: newAgent.demo_url,
-      apiEndpoint: newAgent.api_endpoint,
-      exampleRequest: newAgent.example_request,
-      exampleResponse: newAgent.example_response,
+      documentationUrl: updatedAgentData.documentation_url,
+      demoUrl: updatedAgentData.demo_url,
+      apiEndpoint: updatedAgentData.api_endpoint,
+      exampleRequest: updatedAgentData.example_request,
+      exampleResponse: updatedAgentData.example_response,
     };
   } catch (err) {
     console.error('Error connecting to Supabase:', err);
