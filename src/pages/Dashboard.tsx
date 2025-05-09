@@ -1,11 +1,46 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { AgentCard } from '../components/agents/AgentCard';
 import { Card, CardContent, CardHeader } from '../components/ui/Card';
-import { mockAgents } from '../data/agents';
 import { BarChart3, Brain, Search, TrendingUp, Users } from 'lucide-react';
+import { fetchAgents } from '../lib/agentService';
+import { fetchRecentActivities, Activity } from '../lib/activityService';
+import { Agent } from '../types/agent';
 
 const Dashboard: React.FC = () => {
-  const featuredAgents = mockAgents.slice(0, 3);
+  const [featuredAgents, setFeaturedAgents] = useState<Agent[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [activitiesLoading, setActivitiesLoading] = useState<boolean>(true);
+  
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        setLoading(true);
+        const agents = await fetchAgents();
+        // Get only 3 registered agents
+        setFeaturedAgents(agents.slice(0, 3));
+      } catch (err) {
+        console.error('Error loading agents:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    const loadActivities = async () => {
+      try {
+        setActivitiesLoading(true);
+        const recentActivities = await fetchRecentActivities(5);
+        setActivities(recentActivities);
+      } catch (err) {
+        console.error('Error loading activities:', err);
+      } finally {
+        setActivitiesLoading(false);
+      }
+    };
+    
+    loadAgents();
+    loadActivities();
+  }, []);
   
   return (
     <div className="animate-in space-y-8">
@@ -56,9 +91,20 @@ const Dashboard: React.FC = () => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredAgents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
+          {loading ? (
+            <div className="col-span-3 text-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading agents...</p>
+            </div>
+          ) : featuredAgents.length > 0 ? (
+            featuredAgents.map((agent) => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))
+          ) : (
+            <div className="col-span-3 text-center py-12">
+              <p className="text-gray-600">No registered agents found.</p>
+            </div>
+          )}
         </div>
       </div>
       
@@ -68,32 +114,26 @@ const Dashboard: React.FC = () => {
             <h2 className="text-lg font-semibold text-gray-900">Recent Activity</h2>
           </CardHeader>
           <CardContent>
-            <ul className="space-y-4">
-              <ActivityItem 
-                action="registered" 
-                subject="TextAnalyzer Pro v2.4" 
-                timestamp="2 hours ago"
-                actor="John Smith"
-              />
-              <ActivityItem 
-                action="updated" 
-                subject="Vision Assistant" 
-                timestamp="6 hours ago"
-                actor="Anna Johnson"
-              />
-              <ActivityItem 
-                action="used" 
-                subject="DataInsight" 
-                timestamp="1 day ago"
-                actor="Michael Brown"
-              />
-              <ActivityItem 
-                action="commented on" 
-                subject="CodeGPT" 
-                timestamp="2 days ago"
-                actor="Sarah Wilson"
-              />
-            </ul>
+            {activitiesLoading ? (
+              <div className="text-center py-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600 mx-auto"></div>
+                <p className="mt-2 text-sm text-gray-600">Loading activities...</p>
+              </div>
+            ) : activities.length > 0 ? (
+              <ul className="space-y-4">
+                {activities.map((activity) => (
+                  <ActivityItem 
+                    key={activity.id}
+                    action={activity.action} 
+                    subject={activity.subjectName} 
+                    timestamp={activity.formattedTimestamp || ''}
+                    actor={activity.userName}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <p className="text-center py-4 text-gray-600">No recent activities found.</p>
+            )}
           </CardContent>
         </Card>
         
@@ -103,12 +143,12 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <ul className="space-y-4">
-              {mockAgents.slice(0, 4).map((agent, index) => (
+              {featuredAgents.slice(0, 4).map((agent, index) => (
                 <TrendingAgentItem 
                   key={agent.id}
                   name={agent.name}
                   growth={`+${20 - index * 4}%`}
-                  category={agent.tags[0]}
+                  category={agent.tags[0] || 'General'}
                 />
               ))}
             </ul>

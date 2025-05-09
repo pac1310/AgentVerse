@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardFooter } from '../ui/Card';
 import { Agent } from '../../types/agent';
@@ -12,66 +12,108 @@ interface AgentCardProps {
 export const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
   const AgentIcon = getAgentIcon(agent.logo);
   const isImageUrl = agent.logo && typeof agent.logo === 'string' && agent.logo.startsWith('http');
+  const [isHovering, setIsHovering] = useState(false);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const descriptionRef = useRef<HTMLParagraphElement>(null);
+  
+  useEffect(() => {
+    if (isHovering && descriptionRef.current) {
+      const rect = descriptionRef.current.getBoundingClientRect();
+      setTooltipPosition({
+        top: rect.top - 10, // Position above the element with some spacing
+        left: rect.left + rect.width / 2
+      });
+    }
+  }, [isHovering]);
   
   return (
-    <Link to={`/agents/${agent.id}`}>
-      <Card className="h-full transition-all duration-200 hover:shadow-md hover:border-primary-200">
-        <CardContent className="p-6">
-          <div className="flex items-start space-x-4">
-            <div className={`p-3 rounded-full bg-primary-50 text-primary-600`}>
-              {isImageUrl ? (
-                <img src={agent.logo} alt={agent.name} className="h-6 w-6 object-contain" />
-              ) : (
-                <AgentIcon className="h-6 w-6" />
-              )}
+    <>
+      <Link to={`/agents/${agent.id}`} style={{ display: 'block', minHeight: '360px' }}>
+        <Card className="h-full transition-all duration-200 hover:shadow-md hover:border-primary-200 flex flex-col">
+          <CardContent className="p-6 flex flex-col flex-grow">
+            {/* Agent Icon and Name */}
+            <div className="flex items-center mb-3">
+              <div className={`p-3 rounded-lg bg-primary-50 text-primary-600 mr-4`}>
+                {isImageUrl ? (
+                  <img src={agent.logo} alt={agent.name} className="h-8 w-8 object-contain" />
+                ) : (
+                  <AgentIcon className="h-8 w-8" />
+                )}
+              </div>
+              <h3 className="font-semibold text-xl text-gray-900">{agent.name}</h3>
             </div>
-            <div>
-              <h3 className="font-semibold text-lg text-gray-900">{agent.name}</h3>
-              <p className="text-sm text-gray-500 mt-1">{agent.description}</p>
+            
+            {/* Description with truncation and hover effect */}
+            <div className="mt-2 mb-4 relative">
+              <p 
+                ref={descriptionRef}
+                className="text-gray-600 overflow-hidden"
+                style={{ 
+                  display: '-webkit-box', 
+                  WebkitLineClamp: 3, 
+                  WebkitBoxOrient: 'vertical',
+                  lineHeight: '1.5rem',
+                  height: '4.5rem'
+                }}
+                onMouseEnter={() => setIsHovering(true)}
+                onMouseLeave={() => setIsHovering(false)}
+              >
+                {agent.description}
+              </p>
             </div>
-          </div>
+            
+            {/* Capabilities section */}
+            <div className="mt-2">
+              <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">CAPABILITIES</h4>
+              <div className="flex flex-wrap gap-2">
+                {agent.capabilities.map((capability) => (
+                  <span 
+                    key={capability} 
+                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
+                  >
+                    {capability}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </CardContent>
           
-          <div className="mt-4">
-            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Capabilities</h4>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {agent.capabilities.slice(0, 3).map((capability) => (
-                <span 
-                  key={capability} 
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
-                >
-                  {capability}
-                </span>
-              ))}
-              {agent.capabilities.length > 3 && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                  +{agent.capabilities.length - 3} more
-                </span>
-              )}
+          {/* Stats footer */}
+          <CardFooter className="px-6 py-3 bg-gray-50">
+            <div className="grid grid-cols-3 w-full">
+              <div className="flex items-center text-gray-600 justify-start">
+                <Tag className="h-4 w-4 mr-1" />
+                <span>{agent.tags && agent.tags.length > 0 ? agent.tags[0] : 'Uncategorized'}</span>
+              </div>
+              
+              <div className="flex items-center text-gray-600 justify-center">
+                <Zap className="h-4 w-4 mr-1" />
+                <span>{agent.metrics?.performance || 0}% effective</span>
+              </div>
+              
+              <div className="flex items-center text-gray-600 justify-end">
+                <Clock className="h-4 w-4 mr-1" />
+                <span>Used {new Intl.NumberFormat().format(agent.usage?.count || 0)} times</span>
+              </div>
             </div>
-          </div>
-        </CardContent>
-        
-        <CardFooter className="px-6 py-4 bg-gray-50 flex items-center justify-between text-sm">
-          <div className="flex items-center text-gray-600">
-            <Tag className="h-4 w-4 mr-1" />
-            <span className="capitalize">{agent.tags[0].replace('-', ' ')}</span>
-          </div>
-          
-          {agent.metrics && (
-            <div className="flex items-center text-gray-600">
-              <Zap className="h-4 w-4 mr-1" />
-              <span>{agent.metrics.performance}% effective</span>
-            </div>
-          )}
-          
-          {agent.usage && (
-            <div className="flex items-center text-gray-600">
-              <Clock className="h-4 w-4 mr-1" />
-              <span>Used {new Intl.NumberFormat().format(agent.usage.count)} times</span>
-            </div>
-          )}
-        </CardFooter>
-      </Card>
-    </Link>
+          </CardFooter>
+        </Card>
+      </Link>
+      
+      {/* Tooltip rendered at the document level outside the card */}
+      {isHovering && agent.description.length > 180 && (
+        <div 
+          className="fixed z-50 bg-white p-4 rounded-md shadow-lg border border-gray-200 w-64 text-sm"
+          style={{ 
+            top: `${tooltipPosition.top}px`,
+            left: `${tooltipPosition.left}px`,
+            transform: 'translateX(-50%) translateY(-100%)',
+          }}
+        >
+          {agent.description}
+          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -translate-y-1/2 rotate-45 w-4 h-4 bg-white border-r border-b border-gray-200"></div>
+        </div>
+      )}
+    </>
   );
 };

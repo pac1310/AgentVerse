@@ -3,7 +3,7 @@ import { Agent } from '../types/agent';
 // Using a more sophisticated model that's better at generating detailed descriptions
 const HF_API_URL = 'https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1';
 // Using environment variable (this would be defined in .env.local file)
-const HF_API_KEY = import.meta.env.VITE_HUGGING_FACE_API_KEY || '';
+const HF_API_KEY = import.meta.env.VITE_HUGGING_FACE_API_KEY || 'hf_mock_api_key_for_development';
 
 /**
  * Generates a detailed description for an agent using Hugging Face's inference API
