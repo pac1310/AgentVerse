@@ -51,9 +51,13 @@ const Navbar: React.FC<NavbarProps> = ({ toggleSidebar }) => {
             </Button>
           </Link>
           
-          <button className="p-2 rounded-full text-gray-500 hover:bg-gray-100">
+          <Link 
+            to="/settings" 
+            className="p-2 rounded-full text-gray-500 hover:bg-gray-100"
+            title="Settings"
+          >
             <Settings className="h-5 w-5" />
-          </button>
+          </Link>
 
           <button 
             onClick={handleLogout}

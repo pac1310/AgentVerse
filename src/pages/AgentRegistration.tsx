@@ -123,22 +123,22 @@ const AgentRegistration: React.FC = () => {
   const handleManualGenerate = async () => {
     await generateDetailedDescription();
   };
-
+  
   const onSubmit = async (data: AgentFormData) => {
     setSubmitError(null);
     
     try {
       // Transform form data to agent format
       const agentData = {
-        name: data.name,
-        description: data.description,
+          name: data.name,
+          description: data.description,
         detailedDescription: data.detailedDescription,
-        version: data.version,
+          version: data.version,
         inputFormat: data.inputFormat,
         outputFormat: data.outputFormat,
-        capabilities: data.capabilities,
+          capabilities: data.capabilities,
         tags: data.categories,
-        dependencies: data.dependencies,
+          dependencies: data.dependencies,
         metrics: {
           performance: data.performanceScore,
           reliability: data.reliabilityScore,
@@ -441,10 +441,10 @@ const AgentRegistration: React.FC = () => {
                 <div className="space-y-2">
                   {dependencyFields.map((fieldIndex, index) => (
                     <div key={fieldIndex} className="flex items-center space-x-2">
-                      <Input
-                        placeholder="e.g., tensorflow"
+                    <Input
+                      placeholder="e.g., tensorflow"
                         {...register(`dependencies.${index}` as any)}
-                      />
+                    />
                       {index > 0 && (
                         <Button
                           type="button"
@@ -454,16 +454,16 @@ const AgentRegistration: React.FC = () => {
                         />
                       )}
                       {index === dependencyFields.length - 1 && (
-                        <Button
-                          type="button"
-                          variant="outline"
+                    <Button
+                      type="button"
+                      variant="outline"
                           onClick={addDependency}
-                          icon={<Plus className="h-4 w-4" />}
-                        >
-                          Add
-                        </Button>
+                      icon={<Plus className="h-4 w-4" />}
+                    >
+                      Add
+                    </Button>
                       )}
-                    </div>
+                  </div>
                   ))}
                 </div>
               </div>

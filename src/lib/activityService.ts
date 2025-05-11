@@ -13,6 +13,36 @@ export interface Activity {
 }
 
 /**
+ * Logs a new activity to the activities table without requiring user information
+ * This version can be used for system events or when user context is not available
+ */
+export async function logSystemActivity(
+  action: string, 
+  subjectId: string, 
+  subjectName: string
+): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('activities')
+      .insert({
+        user_id: '00000000-0000-0000-0000-000000000000', // Use a placeholder UUID 
+        user_name: 'System',
+        action,
+        subject_id: subjectId,
+        subject_name: subjectName
+      });
+
+    if (error) {
+      console.error('[logSystemActivity] Error logging activity:', error);
+    } else {
+      console.log(`[logSystemActivity] Logged '${action}' activity for ${subjectName}`);
+    }
+  } catch (err) {
+    console.error('[logSystemActivity] Error connecting to Supabase:', err);
+  }
+}
+
+/**
  * Logs a new activity to the activities table
  */
 export async function logActivity(
@@ -34,10 +64,16 @@ export async function logActivity(
       });
 
     if (error) {
-      console.error('Error logging activity:', error);
+      console.error('[logActivity] Error logging activity:', error);
+      // If user-specific logging fails, try system logging as fallback
+      await logSystemActivity(action, subjectId, subjectName);
+    } else {
+      console.log(`[logActivity] Logged '${action}' by ${userName} for ${subjectName}`);
     }
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
+    console.error('[logActivity] Error connecting to Supabase:', err);
+    // Try system logging as fallback
+    await logSystemActivity(action, subjectId, subjectName);
   }
 }
 
@@ -53,7 +89,7 @@ export async function fetchRecentActivities(limit: number = 10): Promise<Activit
       .limit(limit);
 
     if (error) {
-      console.error('Error fetching activities:', error);
+      console.error('[fetchRecentActivities] Error fetching activities:', error);
       return [];
     }
 
@@ -69,7 +105,7 @@ export async function fetchRecentActivities(limit: number = 10): Promise<Activit
       formattedTimestamp: formatTimestamp(new Date(item.created_at))
     }));
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
+    console.error('[fetchRecentActivities] Error connecting to Supabase:', err);
     return [];
   }
 }
@@ -101,4 +137,22 @@ export const trackAgentActivity = {
     
   commented: (userId: string, userName: string, agentId: string, agentName: string) => 
     logActivity(userId, userName, 'commented on', agentId, agentName)
+};
+
+/**
+ * System version of trackAgentActivity that doesn't require user context
+ * Use this when you want to log activities without a specific user
+ */
+export const trackSystemAgentActivity = {
+  registered: (agentId: string, agentName: string) => 
+    logSystemActivity('registered', agentId, agentName),
+    
+  updated: (agentId: string, agentName: string) => 
+    logSystemActivity('updated', agentId, agentName),
+    
+  used: (agentId: string, agentName: string) => 
+    logSystemActivity('used', agentId, agentName),
+    
+  commented: (agentId: string, agentName: string) => 
+    logSystemActivity('commented on', agentId, agentName)
 }; 

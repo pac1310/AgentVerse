@@ -64,17 +64,6 @@ BEGIN
   END IF;
 END $$;
 
--- Add previous_id column if it doesn't exist
-DO $$ 
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name = 'agents' AND column_name = 'previous_id'
-  ) THEN
-    ALTER TABLE agents ADD COLUMN previous_id uuid;
-  END IF;
-END $$;
-
 -- Fix the RLS policy to allow updates by anyone
 DROP POLICY IF EXISTS "Users can update their own agents" ON agents;
 CREATE POLICY "Anyone can update agents"
@@ -82,12 +71,4 @@ CREATE POLICY "Anyone can update agents"
   FOR UPDATE
   TO authenticated
   USING (true)
-  WITH CHECK (true);
-
--- Fix the RLS policy to allow inserts by anyone
-DROP POLICY IF EXISTS "Users can create their own agents" ON agents;
-CREATE POLICY "Anyone can create agents"
-  ON agents
-  FOR INSERT
-  TO authenticated
   WITH CHECK (true); 

@@ -12,6 +12,19 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [activitiesLoading, setActivitiesLoading] = useState<boolean>(true);
   
+  // Load activities from database
+  const loadActivities = async () => {
+    try {
+      setActivitiesLoading(true);
+      const recentActivities = await fetchRecentActivities(10); // Increased from 5 to 10
+      setActivities(recentActivities);
+    } catch (err) {
+      console.error('Error loading activities:', err);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  };
+  
   useEffect(() => {
     const loadAgents = async () => {
       try {
@@ -26,20 +39,22 @@ const Dashboard: React.FC = () => {
       }
     };
     
-    const loadActivities = async () => {
-      try {
-        setActivitiesLoading(true);
-        const recentActivities = await fetchRecentActivities(5);
-        setActivities(recentActivities);
-      } catch (err) {
-        console.error('Error loading activities:', err);
-      } finally {
-        setActivitiesLoading(false);
-      }
-    };
-    
     loadAgents();
     loadActivities();
+  }, []);
+  
+  // Set up polling for activity updates (every 30 seconds)
+  useEffect(() => {
+    // Initial load already happens in the first useEffect
+    
+    // Set up interval for polling
+    const intervalId = setInterval(() => {
+      console.log('Refreshing activity data...');
+      loadActivities();
+    }, 30000); // 30 seconds in milliseconds
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
   
   return (

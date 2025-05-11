@@ -8,7 +8,6 @@ import { fetchAgentById, isAgentCreator, updateAgent } from '../lib/agentService
 import { Agent } from '../types/agent';
 import { useAuth } from '../lib/AuthContext';
 import Input from '../components/ui/Input';
-import { addToRecentlyViewed } from '../lib/recentlyViewedService';
 
 function formatJsonString(jsonString: string): string {
   try {
@@ -182,10 +181,7 @@ const AgentDetail: React.FC = () => {
         
         setAgent(data);
         
-        // Add agent to recently viewed
         if (data) {
-          addToRecentlyViewed(data);
-          
           setEditFormData({
             name: data.name,
             description: data.description,
@@ -202,6 +198,8 @@ const AgentDetail: React.FC = () => {
             exampleRequest: data.exampleRequest,
             exampleResponse: data.exampleResponse,
           });
+        } else {
+          setError(`Agent with ID ${id} not found`);
         }
         
         if (session && data) {
@@ -346,11 +344,11 @@ const AgentDetail: React.FC = () => {
           {error || "The agent you're looking for doesn't exist or has been removed."}
         </p>
         <div className="mt-6 flex gap-4 justify-center">
-        <Link to="/discover">
+          <Link to="/discover">
             <Button>
-            Back to Discovery
-          </Button>
-        </Link>
+              Back to Discovery
+            </Button>
+          </Link>
           <Link to="/register">
             <Button variant="primary">
               Register New Agent
@@ -415,7 +413,7 @@ const AgentDetail: React.FC = () => {
                   }}
                 />
               ) : (
-              <AgentIcon className="h-8 w-8" />
+                <AgentIcon className="h-8 w-8" />
               )}
             </div>
             <div>
@@ -423,7 +421,7 @@ const AgentDetail: React.FC = () => {
               <p className="text-gray-600 mt-1">Created by {agent.creator}</p>
             </div>
           </div>
-          
+
           {/* Action buttons in one row below the title, Material Design style */}
           <div className="flex gap-2 mt-4">
             {isEditing ? (
@@ -453,24 +451,24 @@ const AgentDetail: React.FC = () => {
                 >
                   Edit Agent
                 </Button>
-            <Button
-              variant="outline"
-              icon={<Heart className="h-4 w-4" />}
-            >
-              Favorite
-            </Button>
-            <Button
-              variant="outline"
-              icon={<Share2 className="h-4 w-4" />}
-            >
-              Share
-            </Button>
-            <Button
-              variant="primary"
-              icon={<Download className="h-4 w-4" />}
-            >
-              Use Agent
-            </Button>
+                <Button
+                  variant="outline"
+                  icon={<Heart className="h-4 w-4" />}
+                >
+                  Favorite
+                </Button>
+                <Button
+                  variant="outline"
+                  icon={<Share2 className="h-4 w-4" />}
+                >
+                  Share
+                </Button>
+                <Button
+                  variant="primary"
+                  icon={<Download className="h-4 w-4" />}
+                >
+                  Use Agent
+                </Button>
               </>
             )}
           </div>
@@ -642,91 +640,91 @@ const AgentDetail: React.FC = () => {
             </Card>
           ) : (
             <>
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold text-gray-900">About this Agent</h2>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-700 leading-relaxed">
-                {agent.description}
-              </p>
-              
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Input Format</h3>
+              <Card>
+                <CardHeader>
+                  <h2 className="text-xl font-semibold text-gray-900">About this Agent</h2>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-700 leading-relaxed">
+                    {agent.description}
+                  </p>
+                  
+                  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500">Input Format</h3>
                       {tryParseJson(agent.inputFormat) ? (
                         <JsonDisplay content={agent.inputFormat} />
                       ) : (
-                  <p className="mt-2 text-gray-900">{agent.inputFormat}</p>
+                        <p className="mt-2 text-gray-900">{agent.inputFormat}</p>
                       )}
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Output Format</h3>
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500">Output Format</h3>
                       {tryParseJson(agent.outputFormat) ? (
                         <JsonDisplay content={agent.outputFormat} />
                       ) : (
-                  <p className="mt-2 text-gray-900">{agent.outputFormat}</p>
+                        <p className="mt-2 text-gray-900">{agent.outputFormat}</p>
                       )}
-                </div>
-              </div>
-              
-              <div className="mt-6">
-                <h3 className="text-sm font-medium text-gray-500">Capabilities</h3>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {agent.capabilities.map((capability) => (
-                    <span 
-                      key={capability} 
-                      className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
-                    >
-                      {capability}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              
-                  {agent.dependencies && agent.dependencies.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="text-sm font-medium text-gray-500">Dependencies</h3>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {agent.dependencies.map((dependency) => (
-                      <span 
-                        key={dependency} 
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
-                      >
-                        {dependency}
-                      </span>
-                    ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <h2 className="text-xl font-semibold text-gray-900">Integration</h2>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
+                  
+                  <div className="mt-6">
+                    <h3 className="text-sm font-medium text-gray-500">Capabilities</h3>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {agent.capabilities.map((capability) => (
+                        <span 
+                          key={capability} 
+                          className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
+                        >
+                          {capability}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {agent.dependencies && agent.dependencies.length > 0 && (
+                    <div className="mt-6">
+                      <h3 className="text-sm font-medium text-gray-500">Dependencies</h3>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {agent.dependencies.map((dependency) => (
+                          <span 
+                            key={dependency} 
+                            className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
+                          >
+                            {dependency}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <h2 className="text-xl font-semibold text-gray-900">Integration</h2>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div>
                       <h3 className="text-sm font-medium text-gray-500">API Endpoint</h3>
                       <div className="mt-2 p-3 bg-gray-50 rounded-md text-gray-800 font-mono text-sm">
                         {agent.apiEndpoint || 'No API endpoint available'}
-                  </div>
-                </div>
-                
+                      </div>
+                    </div>
+                    
                     {agent.exampleRequest && (
-                <div>
+                      <div>
                         <h3 className="text-sm font-medium text-gray-500">Example Request</h3>
                         <JsonDisplay content={agent.exampleRequest} />
-                  </div>
+                      </div>
                     )}
-                
+                    
                     {agent.exampleResponse && (
-                <div>
+                      <div>
                         <h3 className="text-sm font-medium text-gray-500">Example Response</h3>
                         <JsonDisplay content={agent.exampleResponse} />
-                  </div>
+                      </div>
                     )}
                     
                     {agent.documentationUrl && (
@@ -740,11 +738,11 @@ const AgentDetail: React.FC = () => {
                           <span>View Full Documentation</span>
                           <ExternalLink className="h-4 w-4 ml-1" />
                         </a>
-                </div>
+                      </div>
                     )}
-              </div>
-            </CardContent>
-          </Card>
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>
@@ -809,14 +807,14 @@ const AgentDetail: React.FC = () => {
                         <span className="text-sm font-medium text-gray-900">{agent.metrics.performance}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-primary-600 h-2 rounded-full" 
+                        <div 
+                          className="bg-primary-600 h-2 rounded-full" 
                           style={{ width: `${agent.metrics.performance}%` }}
-                          ></div>
-                        </div>
+                        ></div>
+                      </div>
                     </div>
-          )}
-          
+                  )}
+                  
                   {agent.metrics.reliability !== undefined && (
                     <div>
                       <div className="flex justify-between mb-1">
@@ -852,7 +850,7 @@ const AgentDetail: React.FC = () => {
           )}
           
           {agent.demoUrl && (
-          <Card>
+            <Card>
               <CardHeader>
                 <h2 className="text-xl font-semibold text-gray-900">Resources</h2>
               </CardHeader>
@@ -868,8 +866,8 @@ const AgentDetail: React.FC = () => {
                     <span>Live Demo</span>
                   </a>
                 </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           )}
         </div>
       </div>
@@ -877,4 +875,4 @@ const AgentDetail: React.FC = () => {
   );
 };
 
-export default AgentDetail;
+export default AgentDetail; 

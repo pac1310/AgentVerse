@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import { Agent, AgentCategory } from '../types/agent';
 import { agentCategories as mockCategories } from '../data/agents';
 import { generateAgentDescription } from './huggingfaceService';
-import { trackAgentActivity } from './activityService';
+import { trackAgentActivity, trackSystemAgentActivity } from './activityService';
 
 // Extended Agent type that includes documentationUrl
 interface AgentWithDocs extends Partial<Agent> {
@@ -132,9 +132,8 @@ export async function fetchAgentCategories(): Promise<AgentCategory[]> {
 // Function to fetch a single agent by ID
 export async function fetchAgentById(id: string): Promise<Agent | null> {
   try {
-    console.log(`Fetching agent with ID: ${id}`);
+    console.log(`[fetchAgentById] Fetching agent with ID: ${id}`);
     
-    // Try to fetch the agent directly first
     const { data, error } = await supabase
       .from('agents')
       .select('*')
@@ -142,66 +141,22 @@ export async function fetchAgentById(id: string): Promise<Agent | null> {
       .maybeSingle();
 
     if (error) {
-      console.error('Error fetching agent:', error);
-      
-      // If we get a permission error, try a different approach
-      if (error.code === 'PGRST301') {
-        console.log('Permission error, trying to fetch with different approach');
-        
-        // Try to fetch with a simpler query that might bypass RLS
-        const { data: simpleData, error: simpleError } = await supabase
-          .from('agents')
-          .select('id, name, description, detailed_description, logo_url, input_format, output_format, capabilities, categories, version, created_at, updated_at')
-          .eq('id', id)
-          .maybeSingle();
-          
-        if (simpleError || !simpleData) {
-          console.error('Error with simplified fetch:', simpleError);
-          return null;
-        }
-        
-        console.log('Successfully fetched agent with simplified query:', simpleData);
-        return {
-          id: simpleData.id,
-          name: simpleData.name,
-          description: simpleData.description,
-          detailedDescription: simpleData.detailed_description || '',
-          logo: 'brain', // Default to brain icon for simplified fetch
-          capabilities: simpleData.capabilities || [],
-          inputFormat: simpleData.input_format || '',
-          outputFormat: simpleData.output_format || '',
-          version: simpleData.version,
-          creator: 'Unknown', // We don't have creator info in simplified fetch
-          createdAt: simpleData.created_at,
-          updatedAt: simpleData.updated_at,
-          tags: simpleData.categories || [],
-          metrics: {
-            performance: 0,
-            reliability: 0,
-            latency: 0,
-          },
-          dependencies: [],
-          usage: {
-            count: 0,
-            lastUsed: new Date().toISOString(),
-          },
-        };
-      }
-      
+      console.error('[fetchAgentById] Error fetching agent:', error);
+      // Simplified error handling for now, RLS specific logic removed for brevity if not strictly needed by caller
       return null;
     }
 
     if (!data) {
-      console.log(`No agent found with ID: ${id}`);
+      console.log(`[fetchAgentById] No agent found with ID: ${id}`);
       return null;
     }
 
-    console.log(`Agent found:`, data);
+    console.log(`[fetchAgentById] Agent found:`, data.name);
     
     return {
       id: data.id,
-      name: data.name,
-      description: data.description,
+      name: data.name || '',
+      description: data.description || '',
       detailedDescription: data.detailed_description || '',
       logo: data.logo_url && data.logo_url.startsWith('http')
         ? data.logo_url
@@ -209,29 +164,29 @@ export async function fetchAgentById(id: string): Promise<Agent | null> {
       capabilities: data.capabilities || [],
       inputFormat: data.input_format || '',
       outputFormat: data.output_format || '',
-      version: data.version,
+      version: data.version || '1.0.0',
       creator: data.creator_id || 'Unknown',
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
+      createdAt: data.created_at || new Date().toISOString(),
+      updatedAt: data.updated_at || new Date().toISOString(),
       tags: data.categories || [],
       metrics: {
-        performance: data.performance_score,
-        reliability: data.reliability_score,
-        latency: data.latency,
+        performance: data.performance_score === null ? undefined : data.performance_score,
+        reliability: data.reliability_score === null ? undefined : data.reliability_score,
+        latency: data.latency === null ? undefined : data.latency,
       },
       dependencies: data.dependencies || [],
+      documentationUrl: data.documentation_url === null ? undefined : data.documentation_url,
+      demoUrl: data.demo_url === null ? undefined : data.demo_url,
+      apiEndpoint: data.api_endpoint === null ? undefined : data.api_endpoint,
+      exampleRequest: data.example_request === null ? undefined : data.example_request,
+      exampleResponse: data.example_response === null ? undefined : data.example_response,
       usage: {
-        count: 0,
+        count: 0, // This would come from a separate usage tracking table
         lastUsed: new Date().toISOString(),
       },
-      documentationUrl: data.documentation_url,
-      demoUrl: data.demo_url,
-      apiEndpoint: data.api_endpoint,
-      exampleRequest: data.example_request,
-      exampleResponse: data.example_response,
     };
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
+    console.error('[fetchAgentById] Critical error connecting to Supabase:', err);
     return null;
   }
 }
@@ -239,206 +194,99 @@ export async function fetchAgentById(id: string): Promise<Agent | null> {
 // Function to create a new agent
 export async function createAgent(agentData: AgentWithDocs, logoFile?: File): Promise<Agent> {
   try {
-    let logoUrl = null;
+    let logoUrl: string | null = null;
 
-    // Upload logo if provided
     if (logoFile) {
       try {
         const fileExt = logoFile.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
-
-        console.log('Uploading file to Supabase Storage:', fileName);
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('agent-logos')
+          .upload(fileName, logoFile, { cacheControl: '3600', upsert: true, contentType: logoFile.type });
         
-        // Step 1: Check if the bucket exists
-        try {
-          // Check if the bucket exists
-          const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-          
-          if (listError) {
-            console.error('Error listing buckets:', listError);
-            throw listError;
-          }
-          
-          const bucketExists = buckets.some(bucket => bucket.name === 'agent-logos');
-          
-          if (!bucketExists) {
-            console.log('Creating agent-logos bucket...');
-            const { error: createError } = await supabase.storage.createBucket('agent-logos', {
-              public: true
-            });
-            
-            if (createError) {
-              console.error('Error creating bucket:', createError);
-              throw createError;
-            }
-            
-            // Set bucket to public
-            const { error: updateError } = await supabase.storage.updateBucket('agent-logos', {
-              public: true
-            });
-            
-            if (updateError) {
-              console.error('Error making bucket public:', updateError);
-              throw updateError;
-            }
-          }
-          
-          // Step 2: Upload the file
-          console.log('Uploading file to bucket...');
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('agent-logos')
-            .upload(fileName, logoFile, {
-              cacheControl: '3600',
-              upsert: true,
-              contentType: logoFile.type
-            });
-          
-          if (uploadError) {
-            console.error('Logo upload failed:', uploadError);
-            throw uploadError;
-          }
-          
-          // Step 3: Get the public URL
-          console.log('Getting public URL...');
-          const { data: urlData } = supabase.storage
-            .from('agent-logos')
-            .getPublicUrl(fileName);
-          
-          if (!urlData || !urlData.publicUrl) {
-            throw new Error('Failed to get public URL');
-          }
-          
-          console.log('Logo uploaded successfully, public URL:', urlData.publicUrl);
-          logoUrl = urlData.publicUrl;
-        } catch (storageError) {
-          console.error('Storage operation error:', storageError);
-          throw storageError;
-        }
+        if (uploadError) throw uploadError;
+        
+        const { data: publicUrlData } = supabase.storage.from('agent-logos').getPublicUrl(fileName);
+        logoUrl = publicUrlData.publicUrl;
       } catch (logoError) {
-        console.error('Logo handling error:', logoError);
-        // Continue without logo
+        console.error('[createAgent] Logo handling error:', logoError);
       }
     }
 
-    console.log('Inserting agent with logo URL:', logoUrl);
-    
-    // Generate a detailed description using Hugging Face API
     let detailedDescription = agentData.detailedDescription;
-
-    if (!detailedDescription) {
+    if (!detailedDescription && agentData.name && agentData.description) {
       try {
-        console.log('Generating detailed description...');
         const tempAgent: Agent = {
-          id: 'temp',
-          name: agentData.name || '',
-          description: agentData.description || '',
-          logo: logoUrl || 'brain',
-          capabilities: agentData.capabilities || [],
-          inputFormat: agentData.inputFormat || '',
-          outputFormat: agentData.outputFormat || '',
-          version: agentData.version || '1.0.0',
-          creator: 'Unknown',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          id: 'temp', name: agentData.name, description: agentData.description, logo: logoUrl || agentData.logo || 'brain',
+          capabilities: agentData.capabilities || [], inputFormat: agentData.inputFormat || '', outputFormat: agentData.outputFormat || '',
+          version: agentData.version || '1.0.0', creator: 'Unknown', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
           tags: agentData.tags || [],
         };
-        
         detailedDescription = await generateAgentDescription(tempAgent);
-        console.log('Generated detailed description:', detailedDescription);
       } catch (err) {
-        console.error('Error generating detailed description:', err);
-        // Fallback to using the regular description if generation fails
-        detailedDescription = agentData.description;
+        console.error('[createAgent] Error generating detailed description:', err);
+        detailedDescription = agentData.description; // Fallback
       }
     }
 
-    // Insert agent data
-    const { data, error } = await supabase
-      .from('agents')
-      .insert({
-        name: agentData.name,
-        description: agentData.description,
-        detailed_description: detailedDescription,
-        version: agentData.version,
-        logo_url: logoUrl,
-        input_format: agentData.inputFormat,
-        output_format: agentData.outputFormat,
-        capabilities: agentData.capabilities,
-        categories: agentData.tags,
-        dependencies: agentData.dependencies,
-        performance_score: agentData.metrics?.performance,
-        reliability_score: agentData.metrics?.reliability,
-        latency: agentData.metrics?.latency,
-        documentation_url: agentData.documentationUrl,
-        demo_url: agentData.demoUrl,
-        api_endpoint: agentData.apiEndpoint,
-        example_request: agentData.exampleRequest,
-        example_response: agentData.exampleResponse,
-      })
-      .select()
-      .single();
+    const dbPayload = {
+      name: agentData.name,
+      description: agentData.description,
+      detailed_description: detailedDescription === undefined ? null : detailedDescription,
+      version: agentData.version,
+      logo_url: logoUrl === undefined ? (agentData.logo === undefined ? null : agentData.logo) : logoUrl,
+      input_format: agentData.inputFormat === undefined ? null : agentData.inputFormat,
+      output_format: agentData.outputFormat === undefined ? null : agentData.outputFormat,
+      capabilities: agentData.capabilities || [],
+      categories: agentData.tags || [],
+      dependencies: agentData.dependencies || [],
+      performance_score: agentData.metrics?.performance === undefined ? null : agentData.metrics.performance,
+      reliability_score: agentData.metrics?.reliability === undefined ? null : agentData.metrics.reliability,
+      latency: agentData.metrics?.latency === undefined ? null : agentData.metrics.latency,
+      documentation_url: agentData.documentationUrl === undefined ? null : agentData.documentationUrl,
+      demo_url: agentData.demoUrl === undefined ? null : agentData.demoUrl,
+      api_endpoint: agentData.apiEndpoint === undefined ? null : agentData.apiEndpoint,
+      example_request: agentData.exampleRequest === undefined ? null : agentData.exampleRequest,
+      example_response: agentData.exampleResponse === undefined ? null : agentData.exampleResponse,
+      // creator_id should be set if available from auth session
+    };
 
-    if (error) {
-      console.error('Error inserting agent into Supabase:', error);
-      throw new Error(`Failed to create agent: ${error.message}`);
-    }
+    const { data, error } = await supabase.from('agents').insert(dbPayload).select().single();
 
-    if (!data) {
-      throw new Error('No data returned from agent creation');
-    }
+    if (error) throw new Error(`[createAgent] Failed to create agent: ${error.message}`);
+    if (!data) throw new Error('[createAgent] No data returned from agent creation');
 
-    // Log the agent registration activity
+    // Log activity regardless of user authentication status
     try {
+      // First try with user auth context if available
       const { data: userData } = await supabase.auth.getUser();
       if (userData?.user) {
-        trackAgentActivity.registered(
-          userData.user.id, 
-          userData.user.email || 'Unknown User', 
-          data.id, 
-          data.name
-        );
+        console.log('[createAgent] Logging registration with user context:', userData.user.email);
+        trackAgentActivity.registered(userData.user.id, userData.user.email || 'Unknown User', data.id, data.name);
+      } else {
+        // If no user auth context, use system tracking
+        console.log('[createAgent] No user context available, using system activity logging');
+        trackSystemAgentActivity.registered(data.id, data.name);
       }
     } catch (err) {
-      console.error('Error logging activity:', err);
+      console.error('[createAgent] Error during activity logging with user context:', err);
+      // Fallback to system tracking if user context fails
+      try {
+        console.log('[createAgent] Falling back to system activity logging');
+        trackSystemAgentActivity.registered(data.id, data.name);
+      } catch (fallbackErr) {
+        console.error('[createAgent] Even system activity logging failed:', fallbackErr);
+        // Just log the error but continue - activity logging shouldn't break agent creation
+      }
     }
-
-    console.log('Agent created successfully with data:', data);
     
-    // Return the newly created agent
-    return {
-      id: data.id,
-      name: data.name,
-      description: data.description,
-      detailedDescription: data.detailed_description || '',
-      logo: data.logo_url && data.logo_url.startsWith('http')
-        ? data.logo_url
-        : (data.logo_url || 'brain'),
-      capabilities: data.capabilities || [],
-      inputFormat: data.input_format || '',
-      outputFormat: data.output_format || '',
-      version: data.version,
-      creator: data.creator_id || 'Unknown',
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-      tags: data.categories || [],
-      metrics: {
-        performance: data.performance_score,
-        reliability: data.reliability_score,
-        latency: data.latency,
-      },
-      dependencies: data.dependencies || [],
-      usage: {
-        count: 0,
-        lastUsed: new Date().toISOString(),
-      },
-      documentationUrl: data.documentation_url,
-      demoUrl: data.demo_url,
-      apiEndpoint: data.api_endpoint,
-      exampleRequest: data.example_request,
-      exampleResponse: data.example_response,
-    };
+    // Transform and return. Re-use fetchAgentById for consistent transformation.
+    const newAgent = await fetchAgentById(data.id);
+    if (!newAgent) throw new Error('[createAgent] Could not fetch newly created agent.');
+    return newAgent;
+
   } catch (err) {
-    console.error('Critical error in createAgent:', err);
+    console.error('[createAgent] Critical error:', err);
     throw err;
   }
 }
@@ -450,22 +298,15 @@ export async function searchAgents(query: string, filters: any = {}): Promise<Ag
       .from('agents')
       .select('*');
 
-    // Apply text search if provided
     if (query) {
       queryBuilder = queryBuilder.or(
         `name.ilike.%${query}%,description.ilike.%${query}%,detailed_description.ilike.%${query}%`
       );
     }
-
-    // Apply category filters
     if (filters.categories && filters.categories.length > 0) {
-      // This assumes categories are stored as an array in Supabase
       queryBuilder = queryBuilder.contains('categories', filters.categories);
     }
-
-    // Apply capability filters
     if (filters.capabilities && filters.capabilities.length > 0) {
-      // This assumes capabilities are stored as an array in Supabase
       queryBuilder = queryBuilder.contains('capabilities', filters.capabilities);
     }
 
@@ -474,7 +315,6 @@ export async function searchAgents(query: string, filters: any = {}): Promise<Ag
     if (error) {
       console.error('Error searching agents:', error);
       return mockAgentsFromCategories().filter(agent => {
-        // Simple search filter for mock data
         if (query && !agent.name.toLowerCase().includes(query.toLowerCase()) && 
             !agent.description.toLowerCase().includes(query.toLowerCase())) {
           return false;
@@ -482,114 +322,50 @@ export async function searchAgents(query: string, filters: any = {}): Promise<Ag
         return true;
       });
     }
-
-    // Transform to Agent type
     return (data || []).map(item => ({
-      id: item.id,
-      name: item.name,
-      description: item.description,
-      detailedDescription: item.detailed_description || '',
-      logo: item.logo_url && item.logo_url.startsWith('http') 
-        ? item.logo_url 
-        : (item.logo_url || 'brain'), // Use actual URL if it's a URL, otherwise use icon name
-      capabilities: item.capabilities || [],
-      inputFormat: item.input_format || '',
-      outputFormat: item.output_format || '',
-      version: item.version,
-      creator: item.creator_id || 'Unknown',
-      createdAt: item.created_at,
-      updatedAt: item.updated_at,
+      id: item.id, name: item.name, description: item.description, detailedDescription: item.detailed_description || '',
+      logo: item.logo_url && item.logo_url.startsWith('http') ? item.logo_url : (item.logo_url || 'brain'),
+      capabilities: item.capabilities || [], inputFormat: item.input_format || '', outputFormat: item.output_format || '',
+      version: item.version, creator: item.creator_id || 'Unknown', createdAt: item.created_at, updatedAt: item.updated_at,
       tags: item.categories || [],
-      metrics: {
-        performance: item.performance_score,
-        reliability: item.reliability_score,
-        latency: item.latency,
-      },
+      metrics: { performance: item.performance_score, reliability: item.reliability_score, latency: item.latency },
       dependencies: item.dependencies || [],
-      usage: {
-        count: 0,
-        lastUsed: new Date().toISOString(),
-      },
-      documentationUrl: item.documentation_url,
-      demoUrl: item.demo_url,
-      apiEndpoint: item.api_endpoint,
-      exampleRequest: item.example_request,
-      exampleResponse: item.example_response,
+      usage: { count: 0, lastUsed: new Date().toISOString() },
+      documentationUrl: item.documentation_url, demoUrl: item.demo_url, apiEndpoint: item.api_endpoint,
+      exampleRequest: item.example_request, exampleResponse: item.example_response,
     }));
   } catch (err) {
-    console.error('Error connecting to Supabase:', err);
+    console.error('Error connecting to Supabase during search:', err);
     return mockAgentsFromCategories();
   }
 }
 
-// Add a new function to generate detailed descriptions for existing agents
 export async function generateAndUpdateDescriptions(): Promise<number> {
   try {
-    // Fetch all agents without a detailed description
-    const { data, error } = await supabase
-      .from('agents')
-      .select('*')
-      .is('detailed_description', null);
-      
+    const { data, error } = await supabase.from('agents').select('*').is('detailed_description', null);
     if (error) {
-      console.error('Error fetching agents without descriptions:', error);
+      console.error('Error fetching agents for description generation:', error);
       return 0;
     }
-    
-    if (!data || data.length === 0) {
-      console.log('No agents found without detailed descriptions');
-      return 0;
-    }
-    
-    console.log(`Found ${data.length} agents without detailed descriptions`);
-    
-    // Generate and update descriptions for each agent
+    if (!data || data.length === 0) return 0;
+
     let updatedCount = 0;
-    
     for (const item of data) {
       try {
-        // Create an agent object to pass to the description generator
         const agent: Agent = {
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          logo: item.logo_url || 'brain',
-          capabilities: item.capabilities || [],
-          inputFormat: item.input_format || '',
-          outputFormat: item.output_format || '',
-          version: item.version,
-          creator: item.creator_id || 'Unknown',
-          createdAt: item.created_at,
-          updatedAt: item.updated_at,
-          tags: item.categories || [],
-          metrics: {
-            performance: item.performance_score,
-            reliability: item.reliability_score,
-            latency: item.latency,
-          },
+          id: item.id, name: item.name, description: item.description, logo: item.logo_url || 'brain',
+          capabilities: item.capabilities || [], inputFormat: item.input_format || '', outputFormat: item.output_format || '',
+          version: item.version, creator: item.creator_id || 'Unknown', createdAt: item.created_at, updatedAt: item.updated_at,
+          tags: item.categories || [], metrics: { performance: item.performance_score, reliability: item.reliability_score, latency: item.latency },
         };
-        
-        // Generate a detailed description
         const detailedDescription = await generateAgentDescription(agent);
-        
-        // Update the agent in the database
-        const { error: updateError } = await supabase
-          .from('agents')
-          .update({ detailed_description: detailedDescription })
-          .eq('id', agent.id);
-          
-        if (updateError) {
-          console.error(`Error updating agent ${agent.id}:`, updateError);
-          continue;
-        }
-        
-        updatedCount++;
-        console.log(`Updated agent ${agent.id} with detailed description`);
+        const { error: updateError } = await supabase.from('agents').update({ detailed_description: detailedDescription }).eq('id', agent.id);
+        if (updateError) console.error(`Error updating agent ${agent.id} with description:`, updateError);
+        else updatedCount++;
       } catch (agentError) {
-        console.error(`Error processing agent ${item.id}:`, agentError);
+        console.error(`Error processing agent ${item.id} for description:`, agentError);
       }
     }
-    
     return updatedCount;
   } catch (err) {
     console.error('Error in generateAndUpdateDescriptions:', err);
@@ -597,199 +373,168 @@ export async function generateAndUpdateDescriptions(): Promise<number> {
   }
 }
 
-// Function to update an existing agent
+// --- Rewritten updateAgent function ---
 export async function updateAgent(id: string, agentData: AgentWithDocs, logoFile?: File): Promise<Agent> {
   try {
-    console.log(`Attempting to update agent with ID: ${id}`);
-    console.log('Update data:', agentData);
-    
-    let logoUrl = agentData.logo;
+    console.log(`[updateAgent v2] Attempting to update agent ID: ${id}`);
+    console.log('[updateAgent v2] Incoming agentData:', JSON.stringify(agentData, null, 2));
+    if (logoFile) console.log('[updateAgent v2] Incoming logoFile name:', logoFile.name);
 
-    // Upload new logo if provided
+    // 1. Determine the effective logo value for the database 'logo_url' field
+    let effectiveDbLogoUrl: string | null | undefined = undefined;
+    let logoUpdateAttempted = false;
+
     if (logoFile) {
+      logoUpdateAttempted = true;
+      console.log(`[updateAgent v2] New logo file provided: ${logoFile.name}. Uploading...`);
       try {
         const fileExt = logoFile.name.split('.').pop();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
         
-        // Upload the file
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('agent-logos')
-          .upload(fileName, logoFile, {
-            cacheControl: '3600',
-            upsert: true,
-            contentType: logoFile.type
-          });
+          .upload(fileName, logoFile, { cacheControl: '3600', upsert: true, contentType: logoFile.type });
         
         if (uploadError) {
-          console.error('Logo upload failed:', uploadError);
-          throw uploadError;
+          console.error('[updateAgent v2] Logo upload failed:', uploadError);
+          // Decide on error strategy: throw, or log and continue allowing other fields to update?
+          // For now, log and set effectiveDbLogoUrl to keep existing or clear if intended.
+          effectiveDbLogoUrl = agentData.hasOwnProperty('logo') ? (agentData.logo === undefined ? null : agentData.logo) : undefined;
+        } else {
+          const { data: publicUrlData } = supabase.storage.from('agent-logos').getPublicUrl(fileName);
+          effectiveDbLogoUrl = publicUrlData.publicUrl; // This is an HTTP URL
+          console.log(`[updateAgent v2] New logo uploaded. Public URL: ${effectiveDbLogoUrl}`);
         }
-        
-        // Get the public URL
-        const { data: publicUrlData } = supabase.storage
-          .from('agent-logos')
-          .getPublicUrl(fileName);
-        
-        logoUrl = publicUrlData.publicUrl;
       } catch (uploadErr) {
-        console.error('Error during logo upload:', uploadErr);
-        // Continue with update even if logo upload fails
+        console.error('[updateAgent v2] Exception during logo upload processing:', uploadErr);
+        effectiveDbLogoUrl = agentData.hasOwnProperty('logo') ? (agentData.logo === undefined ? null : agentData.logo) : undefined;
+      }
+    } else if (agentData.hasOwnProperty('logo')) {
+      logoUpdateAttempted = true;
+      // No new file, but 'logo' field is present in agentData.
+      // agentData.logo could be an existing URL, an icon name, null (to clear), or undefined (should become null).
+      effectiveDbLogoUrl = agentData.logo === undefined ? null : agentData.logo;
+      console.log(`[updateAgent v2] Logo field present in agentData, no new file. Effective DB logo_url: ${effectiveDbLogoUrl}`);
+    }
+
+    // 2. Construct the payload for Supabase, only including fields present in agentData.
+    const payload: { [key: string]: any } = {};
+    let hasChanges = false;
+
+    // Helper to add to payload if property exists in agentData
+    // Converts undefined to null for nullable fields in DB.
+    const addToPayload = (frontendKey: keyof AgentWithDocs, dbKey: string, isArray = false) => {
+      if (agentData.hasOwnProperty(frontendKey)) {
+        hasChanges = true;
+        // @ts-ignore
+        let value = agentData[frontendKey];
+        if (value === undefined) {
+          payload[dbKey] = null;
+        } else if (isArray && value === null) {
+          payload[dbKey] = []; // Default empty arrays for DB if explicit null is passed for array type
+        } else {
+          payload[dbKey] = value;
+        }
+      }
+    };
+    
+    addToPayload('name', 'name');
+    addToPayload('description', 'description');
+    addToPayload('detailedDescription', 'detailed_description');
+    addToPayload('inputFormat', 'input_format');
+    addToPayload('outputFormat', 'output_format');
+    addToPayload('version', 'version');
+    addToPayload('documentationUrl', 'documentation_url');
+    addToPayload('demoUrl', 'demo_url');
+    addToPayload('apiEndpoint', 'api_endpoint');
+    addToPayload('exampleRequest', 'example_request');
+    addToPayload('exampleResponse', 'example_response');
+
+    addToPayload('capabilities', 'capabilities', true);
+    addToPayload('tags', 'categories', true); // 'tags' maps to 'categories'
+    addToPayload('dependencies', 'dependencies', true);
+
+    if (agentData.hasOwnProperty('metrics')) {
+      hasChanges = true;
+      if (agentData.metrics === null || agentData.metrics === undefined) {
+        payload.performance_score = null;
+        payload.reliability_score = null;
+        payload.latency = null;
+      } else {
+        payload.performance_score = agentData.metrics.performance === undefined ? null : agentData.metrics.performance;
+        payload.reliability_score = agentData.metrics.reliability === undefined ? null : agentData.metrics.reliability;
+        payload.latency = agentData.metrics.latency === undefined ? null : agentData.metrics.latency;
       }
     }
-
-    // Transform agent data to match Supabase schema
-    const supabaseData = {
-      name: agentData.name,
-      description: agentData.description,
-      detailed_description: agentData.detailedDescription,
-      logo_url: logoUrl,
-      capabilities: agentData.capabilities || [],
-      input_format: agentData.inputFormat || '',
-      output_format: agentData.outputFormat || '',
-      version: agentData.version || '1.0.0',
-      categories: agentData.tags || [],
-      updated_at: new Date().toISOString(),
-      performance_score: agentData.metrics?.performance || 0,
-      reliability_score: agentData.metrics?.reliability || 0,
-      latency: agentData.metrics?.latency || 0,
-      dependencies: agentData.dependencies || [],
-      documentation_url: agentData.documentationUrl || '',
-      demo_url: agentData.demoUrl || '',
-      api_endpoint: agentData.apiEndpoint || '',
-      example_request: agentData.exampleRequest || '',
-      example_response: agentData.exampleResponse || ''
-    };
-
-    // First check if the agent exists
-    console.log('Checking if agent exists...');
-    const { data: existingAgent, error: checkError } = await supabase
-      .from('agents')
-      .select('id')
-      .eq('id', id)
-      .maybeSingle();
-      
-    if (checkError) {
-      console.error('Error checking if agent exists:', checkError);
-      throw new Error(`Error checking if agent exists: ${checkError.message}`);
-    }
-
-    if (!existingAgent) {
-      console.error(`No agent found with ID ${id}`);
-      throw new Error(`No agent found with ID ${id}`);
-    }
-
-    console.log('Agent exists, updating...');
     
-    // Directly execute an UPDATE without expecting returned data
-    const { error: updateError } = await supabase
-      .from('agents')
-      .update(supabaseData)
-      .eq('id', id);
-      
+    if (logoUpdateAttempted) {
+        payload.logo_url = effectiveDbLogoUrl; // Already handles undefined -> null if necessary
+        hasChanges = true;
+    }
+    
+    if (!hasChanges) {
+      console.log('[updateAgent v2] No data changes detected in agentData. Fetching current agent.');
+      const currentAgentUnchanged = await fetchAgentById(id);
+      if (!currentAgentUnchanged) {
+        throw new Error(`[updateAgent v2] Agent with ID ${id} not found, cannot return after no-op update.`);
+      }
+      return currentAgentUnchanged;
+    }
+    
+    payload.updated_at = new Date().toISOString();
+    console.log('[updateAgent v2] Final payload for Supabase:', JSON.stringify(payload, null, 2));
+
+    // 3. Perform Supabase update
+    const { error: updateError } = await supabase.from('agents').update(payload).eq('id', id);
+
     if (updateError) {
-      console.error('Error updating agent:', updateError);
+      console.error('[updateAgent v2] Supabase update error:', updateError);
       throw updateError;
     }
-    
-    console.log('Update successful, fetching updated agent...');
-    
-    // Now fetch the agent separately
-    const { data: updatedAgentData, error: fetchError } = await supabase
-      .from('agents')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-      
-    if (fetchError || !updatedAgentData) {
-      console.error('Error fetching updated agent:', fetchError);
-      
-      // If we can't fetch the updated data, construct a response based on the input data
-      // This ensures the UI gets updated even if there's an RLS issue
-      return {
-        id: id,
-        name: agentData.name || '',
-        description: agentData.description || '',
-        detailedDescription: agentData.detailedDescription || '',
-        logo: logoUrl || 'brain',
-        capabilities: agentData.capabilities || [],
-        inputFormat: agentData.inputFormat || '',
-        outputFormat: agentData.outputFormat || '',
-        version: agentData.version || '1.0.0',
-        creator: agentData.creator || 'Unknown',
-        createdAt: agentData.createdAt || new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        tags: agentData.tags || [],
-        metrics: {
-          performance: agentData.metrics?.performance || 0,
-          reliability: agentData.metrics?.reliability || 0,
-          latency: agentData.metrics?.latency || 0,
-        },
-        dependencies: agentData.dependencies || [],
-        usage: {
-          count: 0,
-          lastUsed: new Date().toISOString(),
-        },
-        documentationUrl: agentData.documentationUrl,
-        demoUrl: agentData.demoUrl,
-        apiEndpoint: agentData.apiEndpoint,
-        exampleRequest: agentData.exampleRequest,
-        exampleResponse: agentData.exampleResponse,
-      };
-    }
-    
-    console.log('Successfully fetched updated agent');
-    
-    // Log the agent update activity
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      if (userData?.user) {
-        trackAgentActivity.updated(
-          userData.user.id, 
-          userData.user.email || 'Unknown User', 
-          updatedAgentData.id, 
-          updatedAgentData.name
-        );
-      }
-    } catch (err) {
-      console.error('Error logging activity:', err);
+    console.log('[updateAgent v2] Agent successfully updated in Supabase.');
+
+    // 4. Fetch and return the updated agent using existing reliable fetcher
+    const updatedAgent = await fetchAgentById(id);
+    if (!updatedAgent) {
+      console.error('[updateAgent v2] Failed to fetch agent after update, or agent no longer exists (this should not happen if update succeeded).');
+      throw new Error('Failed to retrieve agent after update. The agent might have been deleted concurrently.');
     }
 
-    // Return the updated agent
-    return {
-      id: updatedAgentData.id,
-      name: updatedAgentData.name,
-      description: updatedAgentData.description,
-      detailedDescription: updatedAgentData.detailed_description || '',
-      logo: updatedAgentData.logo_url && updatedAgentData.logo_url.startsWith('http')
-        ? updatedAgentData.logo_url
-        : (updatedAgentData.logo_url || 'brain'),
-      capabilities: updatedAgentData.capabilities || [],
-      inputFormat: updatedAgentData.input_format || '',
-      outputFormat: updatedAgentData.output_format || '',
-      version: updatedAgentData.version,
-      creator: updatedAgentData.creator_id || 'Unknown',
-      createdAt: updatedAgentData.created_at,
-      updatedAt: updatedAgentData.updated_at,
-      tags: updatedAgentData.categories || [],
-      metrics: {
-        performance: updatedAgentData.performance_score,
-        reliability: updatedAgentData.reliability_score,
-        latency: updatedAgentData.latency,
-      },
-      dependencies: updatedAgentData.dependencies || [],
-      usage: {
-        count: 0,
-        lastUsed: new Date().toISOString(),
-      },
-      documentationUrl: updatedAgentData.documentation_url,
-      demoUrl: updatedAgentData.demo_url,
-      apiEndpoint: updatedAgentData.api_endpoint,
-      exampleRequest: updatedAgentData.example_request,
-      exampleResponse: updatedAgentData.example_response,
-    };
-  } catch (err) {
-    console.error('Error connecting to Supabase:', err);
-    throw err;
+    // Log activity regardless of user authentication status
+    try {
+      // First try with user auth context if available
+      const { data: userData } = await supabase.auth.getUser();
+      if (userData?.user) {
+        console.log('[updateAgent v2] Logging activity with user context:', userData.user.email);
+        trackAgentActivity.updated(userData.user.id, userData.user.email || 'Unknown User', updatedAgent.id, updatedAgent.name);
+      } else {
+        // If no user auth context, use system tracking
+        console.log('[updateAgent v2] No user context available, using system activity logging');
+        trackSystemAgentActivity.updated(updatedAgent.id, updatedAgent.name);
+      }
+    } catch (err) {
+      console.error('[updateAgent v2] Error during activity logging with user context:', err);
+      // Fallback to system tracking if user context fails
+      try {
+        console.log('[updateAgent v2] Falling back to system activity logging');
+        trackSystemAgentActivity.updated(updatedAgent.id, updatedAgent.name);
+      } catch (fallbackErr) {
+        console.error('[updateAgent v2] Even system activity logging failed:', fallbackErr);
+        // Just log the error but continue - activity logging shouldn't break agent updates
+      }
+    }
+
+    console.log('[updateAgent v2] Successfully fetched and returning updated agent:', updatedAgent.name);
+    return updatedAgent;
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[updateAgent v2] Critical error during update for agent ID ${id}: ${message}`);
+    // It's important to throw an error that the UI can catch and display
+    if (error instanceof Error && error.message.includes('not found')) {
+        throw new Error(`Agent with ID ${id} not found. It may have been deleted.`);
+    }
+    throw new Error(`Failed to update agent: ${message}`);
   }
 }
 

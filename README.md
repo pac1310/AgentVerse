@@ -1,47 +1,37 @@
-# OneAI Platform
+# OneAI Agent Discovery Platform
 
-OneAI is an AI Agent Discovery Platform that helps users find, register, and understand various AI agents.
+A platform for discovering, managing, and interacting with AI agents.
+
+## Development
+
+To run the application locally:
+
+```bash
+# Install dependencies
+npm install
+
+# Run the development server
+npm run dev
+```
+
+## Deployment on Zeabur
+
+This application is configured for easy deployment on Zeabur:
+
+1. Create an account on [Zeabur](https://zeabur.com)
+2. Connect your GitHub repository 
+3. Create a new project in Zeabur
+4. Deploy the application from your repository
+5. Zeabur will automatically detect the application as a Vite project and deploy it
 
 ## Features
 
-- **Discover AI Agents**: Browse through a categorized collection of AI agents
-- **Detailed Agent Information**: View comprehensive details about each agent
-- **Agent Registration**: Submit new AI agents to the platform
-- **Global Search**: Search for agents across the platform
-- **Admin Tools**: Manage and enhance agent descriptions
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 16+
-- npm or yarn
-
-### Installation
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/pac1310/AgentVerse.git
-   cd AgentVerse
-   ```
-
-2. Install dependencies:
-   ```
-   npm install
-   ```
-
-3. Create an environment file:
-   Create a `.env.local` file in the root directory with the following content:
-   ```
-   VITE_HUGGING_FACE_API_KEY=your_hugging_face_api_key_here
-   VITE_SUPABASE_URL=your_supabase_url_here
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
-   ```
-
-4. Start the development server:
-   ```
-   npm run dev
-   ```
+- Dashboard with featured agents and activity
+- Agent discovery with search and filters
+- Detailed agent information and usage
+- Agent registration functionality
+- User settings with theme preferences
+- Help and documentation pages
 
 ## Technical Stack
 

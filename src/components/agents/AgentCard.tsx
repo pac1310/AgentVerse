@@ -28,32 +28,32 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
   
   return (
     <>
-      <Link to={`/agents/${agent.id}`} style={{ display: 'block', minHeight: '360px' }}>
+      <Link to={`/agents/${agent.id}`} style={{ display: 'block' }}>
         <Card className="h-full transition-all duration-200 hover:shadow-md hover:border-primary-200 flex flex-col">
-          <CardContent className="p-6 flex flex-col flex-grow">
+          <CardContent className="p-4 flex flex-col flex-grow">
             {/* Agent Icon and Name */}
-            <div className="flex items-center mb-3">
-              <div className={`p-3 rounded-lg bg-primary-50 text-primary-600 mr-4`}>
+            <div className="flex items-center mb-2">
+              <div className={`p-2 rounded-lg bg-primary-50 text-primary-600 mr-3`}>
                 {isImageUrl ? (
-                  <img src={agent.logo} alt={agent.name} className="h-8 w-8 object-contain" />
+                  <img src={agent.logo} alt={agent.name} className="h-6 w-6 object-contain" />
                 ) : (
-                  <AgentIcon className="h-8 w-8" />
+                  <AgentIcon className="h-6 w-6" />
                 )}
               </div>
-              <h3 className="font-semibold text-xl text-gray-900">{agent.name}</h3>
+              <h3 className="font-semibold text-lg text-gray-900">{agent.name}</h3>
             </div>
             
             {/* Description with truncation and hover effect */}
-            <div className="mt-2 mb-4 relative">
+            <div className="mt-1 mb-2 relative">
               <p 
                 ref={descriptionRef}
-                className="text-gray-600 overflow-hidden"
+                className="text-gray-600 text-sm overflow-hidden"
                 style={{ 
                   display: '-webkit-box', 
-                  WebkitLineClamp: 3, 
+                  WebkitLineClamp: 2, 
                   WebkitBoxOrient: 'vertical',
-                  lineHeight: '1.5rem',
-                  height: '4.5rem'
+                  lineHeight: '1.4rem',
+                  height: '2.8rem'
                 }}
                 onMouseEnter={() => setIsHovering(true)}
                 onMouseLeave={() => setIsHovering(false)}
@@ -63,36 +63,41 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
             </div>
             
             {/* Capabilities section */}
-            <div className="mt-2">
-              <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">CAPABILITIES</h4>
-              <div className="flex flex-wrap gap-2">
-                {agent.capabilities.map((capability) => (
+            <div className="mt-1">
+              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">CAPABILITIES</h4>
+              <div className="flex flex-wrap gap-1">
+                {agent.capabilities.slice(0, 3).map((capability) => (
                   <span 
                     key={capability} 
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
+                    className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
                   >
                     {capability}
                   </span>
                 ))}
+                {agent.capabilities.length > 3 && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    +{agent.capabilities.length - 3} more
+                  </span>
+                )}
               </div>
             </div>
           </CardContent>
           
           {/* Stats footer */}
-          <CardFooter className="px-6 py-3 bg-gray-50">
+          <CardFooter className="px-4 py-2 bg-gray-50">
             <div className="grid grid-cols-3 w-full">
-              <div className="flex items-center text-gray-600 justify-start">
-                <Tag className="h-4 w-4 mr-1" />
+              <div className="flex items-center text-gray-600 justify-start text-xs">
+                <Tag className="h-3 w-3 mr-1" />
                 <span>{agent.tags && agent.tags.length > 0 ? agent.tags[0] : 'Uncategorized'}</span>
               </div>
               
-              <div className="flex items-center text-gray-600 justify-center">
-                <Zap className="h-4 w-4 mr-1" />
+              <div className="flex items-center text-gray-600 justify-center text-xs">
+                <Zap className="h-3 w-3 mr-1" />
                 <span>{agent.metrics?.performance || 0}% effective</span>
               </div>
               
-              <div className="flex items-center text-gray-600 justify-end">
-                <Clock className="h-4 w-4 mr-1" />
+              <div className="flex items-center text-gray-600 justify-end text-xs">
+                <Clock className="h-3 w-3 mr-1" />
                 <span>Used {new Intl.NumberFormat().format(agent.usage?.count || 0)} times</span>
               </div>
             </div>
@@ -101,7 +106,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({ agent }) => {
       </Link>
       
       {/* Tooltip rendered at the document level outside the card */}
-      {isHovering && agent.description.length > 180 && (
+      {isHovering && agent.description.length > 80 && (
         <div 
           className="fixed z-50 bg-white p-4 rounded-md shadow-lg border border-gray-200 w-64 text-sm"
           style={{ 

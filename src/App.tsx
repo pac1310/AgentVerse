@@ -6,8 +6,11 @@ import AgentDiscovery from './pages/AgentDiscovery';
 import AgentDetail from './pages/AgentDetail';
 import AgentRegistration from './pages/AgentRegistration';
 import AdminTools from './pages/AdminTools';
+import Documentation from './pages/Documentation';
+import Help from './pages/Help';
 import Login from './pages/Login';
 import { useAuth } from './lib/AuthContext';
+import Settings from './pages/Settings';
 
 function App() {
   const { session, loading } = useAuth();
@@ -31,6 +34,9 @@ function App() {
           <Route path="agents/:id" element={<AgentDetail />} />
           <Route path="register" element={<AgentRegistration />} />
           <Route path="admin" element={<AdminTools />} />
+          <Route path="docs" element={<Documentation />} />
+          <Route path="help" element={<Help />} />
+          <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

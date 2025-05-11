@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Search, PlusCircle, BarChart3, BookOpen, Settings, HelpCircle, ChevronLeft, ChevronRight, Wrench, Shield } from 'lucide-react';
+import { Home, Search, PlusCircle, BarChart3, BookOpen, Settings, HelpCircle, ChevronLeft, ChevronRight, Wrench, Shield, Clock } from 'lucide-react';
 import { clsx } from 'clsx';
+import { getRecentlyViewed, RecentlyViewedItem } from '../../lib/recentlyViewedService';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -11,6 +12,35 @@ interface SidebarProps {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, toggleCollapse }) => {
   const location = useLocation();
+  const [recentlyViewed, setRecentlyViewed] = useState<RecentlyViewedItem[]>([]);
+  
+  // Load recently viewed agents
+  useEffect(() => {
+    const loadRecentlyViewed = () => {
+      const items = getRecentlyViewed();
+      setRecentlyViewed(items);
+    };
+    
+    // Load on initial render
+    loadRecentlyViewed();
+    
+    // Add event listener for storage changes (for when viewed in another tab)
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'oneai_recently_viewed') {
+        loadRecentlyViewed();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also refresh the list when location changes (to catch when a new agent is viewed)
+    const interval = setInterval(loadRecentlyViewed, 5000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [location.pathname]);
   
   const navigationItems = [
     { name: 'Dashboard', path: '/', icon: Home },
@@ -135,15 +165,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, isCollapsed, toggleCollapse }
               Recently Viewed
             </h3>
             <div className="mt-2 space-y-1">
-              <Link to="/agents/textanalyzer" className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100">
-                TextAnalyzer Pro
-              </Link>
-              <Link to="/agents/vision-assistant" className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100">
-                Vision Assistant
-              </Link>
-              <Link to="/agents/datainsight" className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100">
-                DataInsight
-              </Link>
+              {recentlyViewed.length > 0 ? (
+                recentlyViewed.map(item => (
+                  <Link 
+                    key={item.id}
+                    to={`/agents/${item.id}`} 
+                    className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 rounded-md hover:bg-gray-100"
+                  >
+                    <Clock className="h-4 w-4 mr-2 text-gray-500" />
+                    {item.name}
+                  </Link>
+                ))
+              ) : (
+                <div className="px-4 py-2 text-sm text-gray-500">
+                  No recently viewed agents
+                </div>
+              )}
             </div>
           </div>
         )}
